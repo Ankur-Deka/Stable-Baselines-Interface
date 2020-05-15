@@ -7,26 +7,7 @@ from stable_baselines3 import A2C, PPO, SAC, TD3
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.cmd_util import make_vec_env
 from stable_baselines3.common.callbacks import BaseCallback
-# -------------------- tensorboard -------------------- #
-from torch.utils.tensorboard import SummaryWriter
-from stable_baselines3.common.callbacks import CheckpointCallback
-# Save a checkpoint every 1000 steps
 
-class TBoardCallback(BaseCallback):
-	def __init__(self, envName, path, verbose):
-		super(TBoardCallback, self).__init__(verbose)
-		self.eval_env = gym.make(envName)
-		self.writer = SummaryWriter(path)
-	def _on_rollout_end(self):
-		"""
-		This event is triggered before updating the policy.
-		"""
-		mean_reward, std_reward = evaluate_policy(self.model, self.eval_env, n_eval_episodes=5)
-		print('mean_reward', mean_reward, self.num_timesteps)
-		self.writer.add_scalar('Mean Reward', mean_reward, self.num_timesteps)
-	
-	def _on_step(self):
-		return True
 
 class RunnerClass():
 	def __init__(self, args):
@@ -36,16 +17,10 @@ class RunnerClass():
 		self.timeSteps = args.timeSteps
 		self.saveDir = args.saveDir
 
+		# if self.algo in ['PPO','A2C']:
 		self.env = make_vec_env(self.envName, n_envs=self.numEnvs)
-		# Instantiate the agent
-		if self.algo == 'A2C':
-			self.model = A2C('MlpPolicy', self.env, verbose=1)
-		elif self.algo == 'PPO':
-			self.model = PPO('MlpPolicy', self.env, verbose=1)
-		elif self.algo == 'SAC':
-			self.model = SAC('MlpPolicy', self.env, verbose=1)
-		elif self.algo == TD3:
-			self.model = TD3('MlpPolicy', self.env, verbose=1)
+		# else:
+		# 	self.env = gym.make(self.envName)
 
 	def train(self):
 		# -------------------- walk through exisiting directories -------------------- #
@@ -64,18 +39,31 @@ class RunnerClass():
 		config['runID'] = runID 
 		f = open(os.path.join(path,'config.txt'),'w')
 		f.write(str(config))
-		self.callback = TBoardCallback(self.envName, path, 0)
 
 		# -------------------- save config to common file -------------------- #
 		f = open(os.path.join(rootDir,'all_config.txt'),'a')
 		f.write('\n\n'+str(config))
 		f.close()
 		f.close()
+
+		# -------------------- Instantiate the agent -------------------- #
+		if self.algo == 'A2C':
+			self.model = A2C('MlpPolicy', self.env, tensorboard_log=path, verbose=1)
+		elif self.algo == 'PPO':
+			self.model = PPO('MlpPolicy', self.env, tensorboard_log=path, verbose=1)
+		elif self.algo == 'SAC':
+			self.model = SAC('MlpPolicy', self.env, tensorboard_log=path, verbose=1)
+		elif self.algo == 'TD3':
+			self.model = TD3('MlpPolicy', self.env, tensorboard_log=path, verbose=1)
+
+
 		# --------------------Train -------------------- #
 		print('Starting Training')
 		tStart = time.time()
 		# Train the agent
-		self.model.learn(total_timesteps=int(self.timeSteps), callback=self.callback)
+		# self.model.learn(total_timesteps=int(self.timeSteps), callback=self.callback)
+
+		self.model.learn(total_timesteps=int(self.timeSteps))
 		
 		# Save the agent
 		saveDir = os.path.join(path, 'trained_model')
